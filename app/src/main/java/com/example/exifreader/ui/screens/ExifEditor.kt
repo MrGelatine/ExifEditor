@@ -69,8 +69,11 @@ fun ExifEditor(navController: NavController, viewModel: MainActivityViewModel, a
             label = { Text("Model") }
         )
         FloatingActionButton(onClick = {
-            navController.navigate("MainMenu")
             setExitInfo(viewModel.imageUrl, changeExif, activity)
+            navController.navigate("MainMenu"){
+                popUpTo("MainMenu")
+            }
+
         }) {
             Text(text = "Change")
         }
