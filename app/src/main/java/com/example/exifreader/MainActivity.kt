@@ -1,10 +1,10 @@
 package com.example.exifreader
 
+import FileHelper
 import android.Manifest
 import android.Manifest.permission.READ_EXTERNAL_STORAGE
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.app.Activity
-import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -14,7 +14,6 @@ import android.os.Build
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -33,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -55,152 +55,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.example.exifreader.ui.screens.ExifEditor
+import com.example.exifreader.ui.screens.ExifInfo
+import com.example.exifreader.ui.screens.MainMenu
 import com.example.exifreader.ui.theme.ExifReaderTheme
 import org.jetbrains.annotations.Nullable
 import java.io.File
-import java.nio.file.Files.setAttribute
+import kotlin.system.exitProcess
 
 
-val ExifTags:Array<String> = arrayOf(
-    "FNumber",
-    "ApertureValue",
-    "Artist",
-    "BitsPerSample",
-    "BrightnessValue",
-    "CFAPattern",
-    "ColorSpace",
-    "ComponentsConfiguration",
-    "CompressedBitsPerPixel",
-    "Compression",
-    "Contrast",
-    "Copyright",
-    "CustomRendered",
-    "DateTime",
-    "DateTimeDigitized",
-    "DateTimeOriginal",
-    "DefaultCropSize",
-    "DeviceSettingDescription",
-    "DigitalZoomRatio",
-    "DNGVersion",
-    "ExifVersion",
-    "ExposureBiasValue",
-    "ExposureIndex",
-    "ExposureMode",
-    "ExposureProgram",
-    "ExposureTime",
-    "FileSource",
-    "Flash",
-    "FlashpixVersion",
-    "FlashEnergy",
-    "FocalLength",
-    "FocalLengthIn35mmFilm",
-    "FocalPlaneResolutionUnit",
-    "FocalPlaneXResolution",
-    "FocalPlaneYResolution",
-    "FNumber",
-    "GainControl",
-    "GPSAltitude",
-    "GPSAltitudeRef",
-    "GPSAreaInformation",
-    "GPSDateStamp",
-    "GPSDestBearing",
-    "GPSDestBearingRef",
-    "GPSDestDistance",
-    "GPSDestDistanceRef",
-    "GPSDestLatitude",
-    "GPSDestLatitudeRef",
-    "GPSDestLongitude",
-    "GPSDestLongitudeRef",
-    "GPSDifferential",
-    "GPSDOP",
-    "GPSImgDirection",
-    "GPSImgDirectionRef",
-    "GPSLatitude",
-    "GPSLatitudeRef",
-    "GPSLongitude",
-    "GPSLongitudeRef",
-    "GPSMapDatum",
-    "GPSMeasureMode",
-    "GPSProcessingMethod",
-    "GPSSatellites",
-    "GPSSpeed",
-    "GPSSpeedRef",
-    "GPSStatus",
-    "GPSTimeStamp",
-    "GPSTrack",
-    "GPSTrackRef",
-    "GPSVersionID",
-    "ImageDescription",
-    "ImageLength",
-    "ImageUniqueID",
-    "ImageWidth",
-    "InteroperabilityIndex",
-    "ISOSpeedRatings",
-    "ISOSpeedRatings",
-    "JPEGInterchangeFormat",
-    "JPEGInterchangeFormatLength",
-    "LightSource",
-    "Make",
-    "MakerNote",
-    "MaxApertureValue",
-    "MeteringMode",
-    "Model",
-    "NewSubfileType",
-    "OECF",
-    "AspectFrame",
-    "PreviewImageLength",
-    "PreviewImageStart",
-    "ThumbnailImage",
-    "Orientation",
-    "PhotometricInterpretation",
-    "PixelXDimension",
-    "PixelYDimension",
-    "PlanarConfiguration",
-    "PrimaryChromaticities",
-    "ReferenceBlackWhite",
-    "RelatedSoundFile",
-    "ResolutionUnit",
-    "RowsPerStrip",
-    "ISO",
-    "JpgFromRaw",
-    "SensorBottomBorder",
-    "SensorLeftBorder",
-    "SensorRightBorder",
-    "SensorTopBorder",
-    "SamplesPerPixel",
-    "Saturation",
-    "SceneCaptureType",
-    "SceneType",
-    "SensingMethod",
-    "Sharpness",
-    "ShutterSpeedValue",
-    "Software",
-    "SpatialFrequencyResponse",
-    "SpectralSensitivity",
-    "StripByteCounts",
-    "StripOffsets",
-    "SubfileType",
-    "SubjectArea",
-    "SubjectDistance",
-    "SubjectDistanceRange",
-    "SubjectLocation",
-    "SubSecTime",
-    "SubSecTimeDigitized",
-    "SubSecTimeDigitized",
-    "SubSecTimeOriginal",
-    "SubSecTimeOriginal",
-    "ThumbnailImageLength",
-    "ThumbnailImageWidth",
-    "TransferFunction",
-    "UserComment",
-    "WhiteBalance",
-    "WhitePoint",
-    "XResolution",
-    "YCbCrCoefficients",
-    "YCbCrPositioning",
-    "YCbCrSubSampling",
-    "YResolution"
-)
+lateinit var exifTags:Array<String>
 class MainActivity : ComponentActivity() {
     private val PERMISSIONS =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -219,6 +83,7 @@ class MainActivity : ComponentActivity() {
         }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        exifTags = resources.getStringArray(R.array.exifTags)
         if(!checkPermission()){
             requestPermission()
         }
@@ -233,15 +98,15 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    NavHost(navController = navController, startDestination = "ChooseButton") {
-                        composable("ChooseButton") { Greeting(navController, viewModel) }
-                        composable("imageInfo")
+                    NavHost(navController = navController, startDestination = "MainMenu") {
+                        composable("MainMenu") { MainMenu(navController, viewModel) }
+                        composable("ImageInfo")
                         {
-                            ImageInfo(navController = navController, screenSize = LocalConfiguration.current,contentResolver = contentResolver, viewModel = viewModel)
+                            ExifInfo(navController = navController, screenSize = LocalConfiguration.current, activity = this@MainActivity, viewModel = viewModel)
                         }
-                        composable("exifInfo")
+                        composable("ExifInfo")
                         {
-                            ExifEditor(screenSize = LocalConfiguration.current,contentResolver = contentResolver, viewModel = viewModel, activity = this@MainActivity)
+                            ExifEditor(navController = navController, viewModel = viewModel, activity = this@MainActivity)
                         }
                     }
                 }
@@ -272,6 +137,19 @@ class MainActivity : ComponentActivity() {
                 val intent = Intent()
                 intent.action = Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
                 startActivityForResult(intent, 2296)
+                val requestPermissionLauncher =
+                    registerForActivityResult(
+                        ActivityResultContracts.RequestPermission()
+                    ) { isGranted: Boolean ->
+                        if (isGranted) {
+                            // Permission is granted. Continue the action or workflow in your
+                            // app.
+                        } else {
+
+                        }
+                    }
+                requestPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         } else {
             //below android 11
@@ -298,183 +176,7 @@ class MainActivity : ComponentActivity() {
 }
 
 
-@OptIn(ExperimentalGlideComposeApi::class)
-@Composable
-fun ImageInfo(navController: NavController, screenSize: Configuration, contentResolver:ContentResolver,viewModel:MainActivityViewModel, modifier: Modifier = Modifier){
-    val screen_height = screenSize.screenHeightDp
-    val screen_width = screenSize.screenWidthDp
-    val exifInfo = getExifInfo(viewModel.imageUrl, contentResolver)
-    Card(modifier = Modifier
-        .height(screen_height.dp)
-        .width(screen_width.dp)) {
-        ConstraintLayout(modifier = Modifier
-            .height(screen_height.dp)
-            .width(screen_width.dp)) {
-            val (image,tags,infoButton) = createRefs()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .constrainAs(image) { top.linkTo(parent.top, margin = 5.dp) },
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ){
-                GlideImage(
-                    modifier = Modifier
-                        .height((4 * (screen_height / 10)).dp),
-                    model = viewModel.imageUrl, contentDescription = ""
-                )
-            }
-            LazyColumn(
-                modifier = Modifier
-                    .height((4 * (screen_height / 10)).dp)
-                    .constrainAs(tags) { top.linkTo(image.bottom, margin = 5.dp) }
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            )
-            {
-                exifInfo.forEach { keyValue ->
-                    item {
-                        Text(
-                            text = "${keyValue.key}: ${keyValue.value}")
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .constrainAs(infoButton) { top.linkTo(tags.bottom, margin = 5.dp) },
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = { navController.navigate("exifInfo") }) {
-                    Text(text = "Change Exif")
-                }
-            }
 
-        }
-    }
-}
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ExifEditor(screenSize: Configuration, contentResolver:ContentResolver,viewModel:MainActivityViewModel, activity:Activity, modifier: Modifier = Modifier){
-    val exifInfo = getExifInfo(viewModel.imageUrl, contentResolver)
 
-    Card() {
-        var gpsLatitude:String by remember{ mutableStateOf(exifInfo[ExifInterface.TAG_GPS_LATITUDE]?: "") }
-        var gpsLongtitude:String by remember{ mutableStateOf(exifInfo[ExifInterface.TAG_GPS_LONGITUDE]?: "") }
-        var exifVersion:String by remember{ mutableStateOf(exifInfo[ExifInterface.TAG_EXIF_VERSION]?: "") }
-        OutlinedTextField(
-            value = gpsLatitude,
-            onValueChange = {
-                gpsLatitude = it
-                setExitInfo(viewModel.imageUrl, contentResolver, ExifInterface.TAG_GPS_LATITUDE, it, activity)
-            },
-            label = { Text("GPS Latitude") }
-        )
-        OutlinedTextField(
-            value = gpsLongtitude,
-            onValueChange = {
-                gpsLongtitude = it
-                setExitInfo(viewModel.imageUrl, contentResolver, ExifInterface.TAG_GPS_LONGITUDE, it, activity)
-            },
-            label = { Text("GPS Longitude") }
-        )
-        OutlinedTextField(
-            value = exifVersion,
-            onValueChange = {
-                exifVersion = it
-                setExitInfo(viewModel.imageUrl, contentResolver, ExifInterface.TAG_EXIF_VERSION, it, activity)
-            },
-            label = { Text("Exif Version") }
-        )
-    }
-}
-@Composable
-fun Greeting(navController:NavController, viewModel:MainActivityViewModel, modifier: Modifier = Modifier) {
-    val pickMedia = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent(), onResult = { image_uri ->
-        viewModel.imageUrl = image_uri!!
-        navController.navigate("imageInfo")
-    })
-    ElevatedButton(onClick = { pickMedia.launch("image/*") }) {
-        Text(
-            text = "Choose image!",
-            modifier = modifier
-        )
-    }
-}
 
-fun getImageMediaId(resolver: ContentResolver, uri: Uri): Int{
-    val collection =
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q){
-            MediaStore.Images.Media.getContentUri(
-                MediaStore.VOLUME_EXTERNAL
-            )
-        }else{
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
-    val projection = arrayOf(
-        MediaStore.Images.Media._ID,
-        MediaStore.Images.Media.DISPLAY_NAME,
-        MediaStore.Images.Media.SIZE
-    )
 
-    val selection = null
-    val selectionArgs = null
-    val sordOrder = null
-    val query = resolver.query(
-        collection,
-        projection,
-        selection,
-        selectionArgs,
-        sordOrder
-    )
-    var id = -1
-    val dataColumn = query?.getColumnIndexOrThrow(projection[0])
-    if (query != null) {
-        if (query.moveToFirst()){
-            id = query.getInt(dataColumn!!)
-        }
-    }
-    return query?.count ?: 0
-}
-
-fun getPathUri(resolver:ContentResolver, uri:Uri):String? {
-
-    var path: String? = null
-    val proj = arrayOf(MediaStore.Images.Media.DATA)
-    resolver.query(uri, proj, null, null, null)?.use {cursor->
-        val dataColumn = cursor.getColumnIndexOrThrow(proj[0])
-        if (cursor.moveToFirst()){
-            path = cursor.getString(dataColumn)
-        }
-        cursor.close()
-    }
-    return path
-}
-
-fun setExitInfo(imageUri: Uri, resolver: ContentResolver, tag: String, value: String, activity: Activity){
-    val granted = ContextCompat.checkSelfPermission(activity.applicationContext, Manifest.permission.ACCESS_MEDIA_LOCATION)
-    if(granted != PackageManager.PERMISSION_GRANTED) {
-        requestPermissions(activity, arrayOf(Manifest.permission.ACCESS_MEDIA_LOCATION), 0)
-    }
-    val path = getPathUri(resolver,imageUri)
-    ExifInterface(File(path)).run {
-        setAttribute(tag, value)
-        saveAttributes()
-    }
-
-}
-fun getExifInfo(imageUri: Uri, resolver: ContentResolver): MutableMap<String, String>{
-    val inputResolver = resolver.openInputStream(imageUri)!!
-    val exifInterface: ExifInterface =
-        ExifInterface(inputResolver)
-    val tagsInfo: MutableMap<String, String> = mutableMapOf()
-    for (tag in ExifTags){
-        if(exifInterface.hasAttribute(tag)){
-            exifInterface.getAttribute(tag)?.let { tagsInfo.put(tag, it) }
-        }
-    }
-    return tagsInfo
-}
